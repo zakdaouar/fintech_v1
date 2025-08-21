@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: fintech
+      POSTGRES_PASSWORD: fintech
+      POSTGRES_DB: fintechdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fintech"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://fintech:fintech@db:5432/fintechdb?schema=public
+      JWT_SECRET: change_me_in_env
+      BRIDGE_API_KEY: bridge_sandbox_api_key_here
+      BRIDGE_WEBHOOK_PUBLIC_KEY: |
+        -----BEGIN PUBLIC KEY-----
+        ...paste from Bridge webhook endpoint...
+        -----END PUBLIC KEY-----
+      NODE_ENV: production
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      NEXT_PUBLIC_API_BASE: http://backend:3001
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
